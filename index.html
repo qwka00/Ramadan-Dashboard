@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ذاكر | العداد الرمضاني التفاعلي</title>
+    <style>
+        :root {
+            --gold: #ffcf4b;
+            --deep-blue: #050b18;
+            --soft-white: #f0f0f0;
+            --glass: rgba(255, 255, 255, 0.07);
+        }
+
+        body {
+            background: radial-gradient(circle at center, #1b2735 0%, #090a0f 100%);
+            color: var(--soft-white);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+        #stars { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+
+        .main-container {
+            text-align: center;
+            z-index: 10;
+            background: var(--glass);
+            padding: 40px;
+            border-radius: 40px;
+            border: 1px solid rgba(255, 207, 75, 0.2);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            width: 90%;
+            max-width: 750px;
+        }
+
+        #timer {
+            font-size: 4.5rem;
+            font-weight: 900;
+            color: var(--gold);
+            text-shadow: 0 0 30px rgba(255, 207, 75, 0.4);
+            margin: 10px 0;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        h2 { margin: 0; font-weight: 300; font-size: 1.5rem; }
+
+        .counters-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .counter-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 207, 75, 0.1);
+            padding: 20px 10px;
+            border-radius: 20px;
+            transition: all 0.1s ease;
+            position: relative;
+        }
+
+        /* تأثير عند الضغط */
+        .counter-card.active-key {
+            background: var(--gold);
+            color: black;
+            transform: scale(0.95);
+        }
+
+        .counter-label { font-size: 1rem; margin-bottom: 10px; font-weight: bold; }
+        .counter-value { font-size: 2.2rem; font-weight: bold; color: var(--gold); }
+        .counter-card.active-key .counter-value { color: black; }
+
+        .key-hint {
+            display: block;
+            margin-top: 10px;
+            font-size: 0.75rem;
+            color: #888;
+            background: rgba(0,0,0,0.3);
+            padding: 2px 5px;
+            border-radius: 5px;
+            border: 1px dashed #444;
+        }
+
+        .keyboard-guide {
+            margin-top: 35px;
+            padding: 15px;
+            background: rgba(255, 207, 75, 0.05);
+            border-radius: 15px;
+            font-size: 0.95rem;
+            color: var(--gold);
+            border: 1px solid rgba(255, 207, 75, 0.1);
+        }
+
+        .particle {
+            position: fixed;
+            pointer-events: none;
+            animation: flyUp 1s forwards;
+            font-size: 2.5rem;
+            z-index: 1000;
+        }
+
+        @keyframes flyUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-200px) scale(2); opacity: 0; }
+        }
+
+        .footer-note { margin-top: 25px; font-size: 0.8rem; color: #666; }
+    </style>
+</head>
+<body ondblclick="toggleFullScreen()">
+
+    <canvas id="stars"></canvas>
+
+    <div class="main-container">
+        <div style="font-size: 45px; filter: drop-shadow(0 0 10px var(--gold));">🌙</div>
+        <h2>الوقت المتبقي لنهاية الشفت</h2>
+        <div id="timer">00:00:00</div>
+
+        <div class="counters-grid">
+            <div class="counter-card" id="card-s">
+                <div class="counter-label">استغفر الله</div>
+                <div class="counter-value" id="istighfar-val">0</div>
+                <span class="key-hint">اضغط حرف [S]</span>
+            </div>
+            <div class="counter-card" id="card-p">
+                <div class="counter-label">صلّ على النبي</div>
+                <div class="counter-value" id="salawat-val">0</div>
+                <span class="key-hint">اضغط حرف [P]</span>
+            </div>
+            <div class="counter-card" id="card-h">
+                <div class="counter-label">الحمد لله</div>
+                <div class="counter-value" id="hamd-val">0</div>
+                <span class="key-hint">اضغط حرف [H]</span>
+            </div>
+            <div class="counter-card" id="card-a">
+                <div class="counter-label">الله أكبر</div>
+                <div class="counter-value" id="takbir-val">0</div>
+                <span class="key-hint">اضغط حرف [A]</span>
+            </div>
+        </div>
+
+        <div class="keyboard-guide">
+            💡 <b>نظام العد الذكي:</b> يجب رفع الإصبع عن الزر والضغط مرة أخرى ليتم احتساب العدة.
+        </div>
+        <div class="footer-note">اضغط مرتين (Double Click) في أي مكان لتفعيل ملء الشاشة</div>
+    </div>
+
+    <script>
+        // منع العد عند تعليق الإصبع على الزر
+        let isPressed = { s: false, p: false, h: false, a: false };
+        let counts = { s: 0, p: 0, h: 0, a: 0 };
+        
+        const icons = { s: '✨', p: '🌸', h: '💎', a: '☀️' };
+        const ids = { s: 'istighfar-val', p: 'salawat-val', h: 'hamd-val', a: 'takbir-val' };
+
+        function handleAction(key) {
+            if (counts.hasOwnProperty(key)) {
+                // إذا كان الزر مضغوطاً بالفعل، لا تفعل شيئاً
+                if (isPressed[key]) return;
+
+                // تحديث الحالة للضغط الفعلي
+                isPressed[key] = true;
+                counts[key]++;
+                document.getElementById(ids[key]).innerText = counts[key];
+                
+                // تأثير بصري
+                const card = document.getElementById('card-' + key);
+                card.classList.add('active-key');
+                setTimeout(() => card.classList.remove('active-key'), 100);
+
+                createParticle(icons[key]);
+            }
+        }
+
+        // تحرير الزر عند رفع الإصبع
+        document.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (isPressed.hasOwnProperty(key)) {
+                isPressed[key] = false;
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            handleAction(e.key.toLowerCase());
+        });
+
+        function createParticle(icon) {
+            const p = document.createElement('div');
+            p.className = 'particle';
+            p.innerText = icon;
+            p.style.left = (window.innerWidth / 2 + (Math.random() * 400 - 200)) + 'px';
+            p.style.top = (window.innerHeight / 2) + 'px';
+            document.body.appendChild(p);
+            setTimeout(() => p.remove(), 1000);
+        }
+
+        // تحديث عداد شفت 3:30
+        function updateTimer() {
+            const now = new Date();
+            const end = new Date();
+            end.setHours(15, 30, 0);
+            
+            if (now >= end) {
+                document.getElementById('timer').innerText = "روّحنا! 😍";
+                return;
+            }
+            
+            const diff = end - now;
+            const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+            const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+            const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+            document.getElementById('timer').innerText = `${h}:${m}:${s}`;
+        }
+        setInterval(updateTimer, 1000);
+        updateTimer();
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else document.exitFullscreen();
+        }
+
+        // خلفية النجوم المتحركة
+        const canvas = document.getElementById('stars');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        let stars = Array(150).fill().map(() => ({
+            x: Math.random() * canvas.width, 
+            y: Math.random() * canvas.height, 
+            r: Math.random() * 1.5,
+            o: Math.random()
+        }));
+
+        function animate() {
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+            stars.forEach(s => {
+                ctx.fillStyle = `rgba(255, 255, 255, ${s.o})`;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+                ctx.fill();
+                s.o += (Math.random() - 0.5) * 0.02;
+                if(s.o < 0) s.o = 0; if(s.o > 1) s.o = 1;
+            });
+            requestAnimationFrame(animate);
+        }
+        animate();
+    </script>
+</body>
+</html>
